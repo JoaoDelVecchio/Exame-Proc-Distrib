@@ -1,0 +1,6 @@
+fastapi
+uvicorn
+pymoo
+pandas
+numpy
+requests
