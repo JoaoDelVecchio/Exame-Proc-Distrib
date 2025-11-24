@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"net/http"
 	"os"
 	"strings"
@@ -15,17 +16,22 @@ import (
 
 // Configurações
 const (
-	GenerationsPerCycle = 5 // Quantas gerações rodar antes de migrar
-	TotalCycles         = 40 // Quantas vezes repetir o processo
+	GenerationsPerCycle = 30    // 30 gerações por ciclo (como você pediu)
+	MaxCycles           = 100   // Limite de segurança para não rodar para sempre
+	ConvergenceTol      = 0.001 // Tolerância de estagnação
 )
 
-// Estrutura para receber dados dos migrantes (compatível com o JSON do Python)
+// Estruturas JSON para comunicação
 type MigrantsPayload struct {
 	Genes [][]float64 `json:"genes"`
 }
 
+type EvolveResponse struct {
+	Status            string  `json:"status"`
+	CurrentBestSharpe float64 `json:"current_best_sharpe"`
+}
+
 func main() {
-	// Pega a lista de ilhas da variável de ambiente (definida no docker-compose)
 	islandsEnv := os.Getenv("ISLANDS")
 	if islandsEnv == "" {
 		log.Fatal("Nenhuma ilha definida na variável ISLANDS")
@@ -34,111 +40,114 @@ func main() {
 
 	log.Printf("Iniciando Coordenador com %d ilhas: %v", len(islands), islands)
 
-	// 1. Inicialização: Manda todas as ilhas carregarem os dados com RETRY
-	log.Println("--- Fase 1: Inicializando Ilhas (Aguardando Workers ficarem online) ---")
-
+	// --- FASE 1: INICIALIZAÇÃO ---
+	log.Println("--- Fase 1: Inicializando Ilhas ---")
 	for _, island := range islands {
 		connected := false
-		// Tenta conectar infinitamente até conseguir
 		for !connected {
 			resp, err := http.Post(island+"/init", "application/json", nil)
-
 			if err == nil && resp.StatusCode == 200 {
 				resp.Body.Close()
-				log.Printf("%s conectada e inicializada com sucesso!", island)
-				connected = true // Sai do loop de tentativas
+				log.Printf("%s online!", island)
+				connected = true
 			} else {
-				// Se der erro, apenas avisa e espera
-				log.Printf("%s ainda indisponível (connection refused). Tentando em 2s...", island)
+				log.Printf("%s indisponível. Tentando em 2s...", island)
 				time.Sleep(2 * time.Second)
 			}
 		}
 	}
-	log.Println("Todas as ilhas inicializadas e com dados carregados.")
 
-	// Loop Principal de Evolução
-	for cycle := 1; cycle <= TotalCycles; cycle++ {
-		log.Printf("\n=== Ciclo %d/%d ===", cycle, TotalCycles)
+	// Variáveis de Controle
+	globalBestSharpe := -1.0 // Começa baixo
+	startTime := time.Now()  // INICIA O CRONÔMETRO
 
-		// 2. Evolução Paralela
-		// Usamos WaitGroup para esperar todas as ilhas terminarem de processar
+	// --- FASE 2: LOOP DE EVOLUÇÃO ---
+	log.Println("\n--- Iniciando Otimização Distribuída ---")
+
+	for cycle := 1; cycle <= MaxCycles; cycle++ {
+		log.Printf("\n=== Ciclo %d (Gerações %d a %d) ===", cycle, (cycle-1)*GenerationsPerCycle, cycle*GenerationsPerCycle)
+
+		// Variável para achar o melhor Sharpe deste ciclo específico
+		var cycleBestSharpe float64 = -1.0
+		var mu sync.Mutex // Para proteger a escrita da variável acima nas goroutines
 		var wg sync.WaitGroup
-		start := time.Now()
 
+		// A. Evolução em Paralelo
 		for _, island := range islands {
 			wg.Add(1)
 			go func(url string) {
 				defer wg.Done()
-				// Chama o endpoint /evolve?generations=10
+				
+				// Chama API: /evolve?generations=30
 				target := fmt.Sprintf("%s/evolve?generations=%d", url, GenerationsPerCycle)
 				resp, err := http.Post(target, "application/json", nil)
 				if err != nil {
-					log.Printf("Erro evoluindo ilha %s: %v", url, err)
+					log.Printf("Erro evoluindo %s: %v", url, err)
 					return
 				}
 				defer resp.Body.Close()
 
-				// Opcional: Ler o melhor resultado atual
-				body, _ := io.ReadAll(resp.Body)
-				log.Printf("Ilha %s completou evolução: %s", url, string(body))
+				// Lê a resposta JSON para saber o Sharpe atual da ilha
+				var result EvolveResponse
+				if err := json.NewDecoder(resp.Body).Decode(&result); err == nil {
+					log.Printf("Ilha %s terminou. Sharpe: %.5f", url, result.CurrentBestSharpe)
+					
+					// Atualiza o melhor do ciclo de forma segura
+					mu.Lock()
+					if result.CurrentBestSharpe > cycleBestSharpe {
+						cycleBestSharpe = result.CurrentBestSharpe
+					}
+					mu.Unlock()
+				}
 			}(island)
 		}
 		wg.Wait()
-		log.Printf("Evolução concluída em %v", time.Since(start))
 
-		// 3. Migração (Topologia Anel)
-		// Ilha[0] -> Ilha[1], Ilha[1] -> Ilha[2] ...
-		log.Println("--- Iniciando Migração (Topologia Anel) ---")
+		// B. Verificação de Convergência (Critério de Parada)
+		improvement := cycleBestSharpe - globalBestSharpe
+		log.Printf(">> Melhor Sharpe do Ciclo: %.5f | Melhor Anterior: %.5f | Melhoria: %.5f", cycleBestSharpe, globalBestSharpe, improvement)
+
+		if cycleBestSharpe > globalBestSharpe {
+			// Se melhorou, atualizamos o global
+			globalBestSharpe = cycleBestSharpe
+			
+			// Se a melhoria foi insignificante (menor que 0.001), paramos
+			// Nota: Só paramos se já tivermos rodado pelo menos 1 ciclo completo antes para comparar
+			if cycle > 1 && improvement < ConvergenceTol {
+				log.Printf("\nESTAGNAÇÃO DETECTADA: Melhoria %.5f < %.5f. Parando otimização.", improvement, ConvergenceTol)
+				break
+			}
+		} else {
+			// Se não melhorou nada (estranho em GA, mas possível), também paramos
+			log.Println("\nSEM MELHORIA: Parando otimização.")
+			break
+		}
+
+		// C. Migração (Topologia Anel) - Só faz se não parou
+		log.Println("--- Trocando Indivíduos (Migração) ---")
 		for i, islandUrl := range islands {
-			// Define quem é o vizinho (o próximo da lista, o último manda pro primeiro)
 			nextIndex := (i + 1) % len(islands)
 			nextIslandUrl := islands[nextIndex]
 
-			// Passo A: Pega os melhores da ilha atual
+			// 1. Get Migrants
 			resp, err := http.Get(islandUrl + "/migrants")
 			if err != nil {
-				log.Printf("Erro ao pegar migrantes de %s: %v", islandUrl, err)
 				continue
 			}
-
 			migrantsBody, _ := io.ReadAll(resp.Body)
 			resp.Body.Close()
 
-			// Passo B: Envia para a próxima ilha
-			respSend, err := http.Post(nextIslandUrl+"/migrants", "application/json", bytes.NewBuffer(migrantsBody))
-			if err != nil {
-				log.Printf("Erro ao enviar migrantes para %s: %v", nextIslandUrl, err)
-				continue
-			}
-			respSend.Body.Close()
-
-			log.Printf("Migração: %s >>> %s (OK)", islandUrl, nextIslandUrl)
+			// 2. Send Migrants
+			http.Post(nextIslandUrl+"/migrants", "application/json", bytes.NewBuffer(migrantsBody))
 		}
 	}
 
-	// 4. Resultado Final
-	log.Println("\n=== Processo Finalizado. Coletando Resultados ===")
-	bestSharpe := -1.0
-	bestIsland := ""
-
-	for _, island := range islands {
-		resp, err := http.Get(island + "/status")
-		if err != nil {
-			continue
-		}
-		var status struct {
-			Sharpe float64 `json:"sharpe"`
-		}
-		json.NewDecoder(resp.Body).Decode(&status)
-		resp.Body.Close()
-
-		log.Printf("Resultado Final %s: Sharpe Ratio = %.4f", island, status.Sharpe)
-
-		if status.Sharpe > bestSharpe {
-			bestSharpe = status.Sharpe
-			bestIsland = island
-		}
-	}
-
-	log.Printf("\nMELHOR RESULTADO GLOBAL: Sharpe %.4f (Vindo de %s)", bestSharpe, bestIsland)
+	// --- FIM ---
+	elapsed := time.Since(startTime)
+	
+	log.Println("\n============================================")
+	log.Printf("OTIMIZAÇÃO CONCLUÍDA")
+	log.Printf("Tempo Total: %s", elapsed)
+	log.Printf("Melhor Sharpe Ratio Encontrado: %.5f", globalBestSharpe)
+	log.Println("============================================")
 }
