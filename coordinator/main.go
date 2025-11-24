@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"math"
 	"net/http"
 	"os"
 	"strings"
@@ -16,8 +15,8 @@ import (
 
 // Configurações
 const (
-	GenerationsPerCycle = 30    // 30 gerações por ciclo (como você pediu)
-	MaxCycles           = 100   // Limite de segurança para não rodar para sempre
+	GenerationsPerCycle = 30    // 30 gerações por ciclo
+	MaxCycles           = 100   // Limite de segurança
 	ConvergenceTol      = 0.001 // Tolerância de estagnação
 )
 
@@ -48,18 +47,18 @@ func main() {
 			resp, err := http.Post(island+"/init", "application/json", nil)
 			if err == nil && resp.StatusCode == 200 {
 				resp.Body.Close()
-				log.Printf("%s online!", island)
+				log.Printf("✅ %s online!", island)
 				connected = true
 			} else {
-				log.Printf("%s indisponível. Tentando em 2s...", island)
+				log.Printf("⏳ %s indisponível. Tentando em 2s...", island)
 				time.Sleep(2 * time.Second)
 			}
 		}
 	}
 
 	// Variáveis de Controle
-	globalBestSharpe := -1.0 // Começa baixo
-	startTime := time.Now()  // INICIA O CRONÔMETRO
+	globalBestSharpe := -1.0
+	startTime := time.Now()
 
 	// --- FASE 2: LOOP DE EVOLUÇÃO ---
 	log.Println("\n--- Iniciando Otimização Distribuída ---")
@@ -67,9 +66,8 @@ func main() {
 	for cycle := 1; cycle <= MaxCycles; cycle++ {
 		log.Printf("\n=== Ciclo %d (Gerações %d a %d) ===", cycle, (cycle-1)*GenerationsPerCycle, cycle*GenerationsPerCycle)
 
-		// Variável para achar o melhor Sharpe deste ciclo específico
 		var cycleBestSharpe float64 = -1.0
-		var mu sync.Mutex // Para proteger a escrita da variável acima nas goroutines
+		var mu sync.Mutex
 		var wg sync.WaitGroup
 
 		// A. Evolução em Paralelo
@@ -78,7 +76,6 @@ func main() {
 			go func(url string) {
 				defer wg.Done()
 				
-				// Chama API: /evolve?generations=30
 				target := fmt.Sprintf("%s/evolve?generations=%d", url, GenerationsPerCycle)
 				resp, err := http.Post(target, "application/json", nil)
 				if err != nil {
@@ -87,12 +84,10 @@ func main() {
 				}
 				defer resp.Body.Close()
 
-				// Lê a resposta JSON para saber o Sharpe atual da ilha
 				var result EvolveResponse
 				if err := json.NewDecoder(resp.Body).Decode(&result); err == nil {
 					log.Printf("Ilha %s terminou. Sharpe: %.5f", url, result.CurrentBestSharpe)
 					
-					// Atualiza o melhor do ciclo de forma segura
 					mu.Lock()
 					if result.CurrentBestSharpe > cycleBestSharpe {
 						cycleBestSharpe = result.CurrentBestSharpe
@@ -103,33 +98,29 @@ func main() {
 		}
 		wg.Wait()
 
-		// B. Verificação de Convergência (Critério de Parada)
+		// B. Verificação de Convergência
 		improvement := cycleBestSharpe - globalBestSharpe
 		log.Printf(">> Melhor Sharpe do Ciclo: %.5f | Melhor Anterior: %.5f | Melhoria: %.5f", cycleBestSharpe, globalBestSharpe, improvement)
 
 		if cycleBestSharpe > globalBestSharpe {
-			// Se melhorou, atualizamos o global
 			globalBestSharpe = cycleBestSharpe
 			
-			// Se a melhoria foi insignificante (menor que 0.001), paramos
-			// Nota: Só paramos se já tivermos rodado pelo menos 1 ciclo completo antes para comparar
+			// Só paramos se já tivermos rodado pelo menos 1 ciclo completo antes para comparar a melhoria
 			if cycle > 1 && improvement < ConvergenceTol {
 				log.Printf("\nESTAGNAÇÃO DETECTADA: Melhoria %.5f < %.5f. Parando otimização.", improvement, ConvergenceTol)
 				break
 			}
 		} else {
-			// Se não melhorou nada (estranho em GA, mas possível), também paramos
 			log.Println("\nSEM MELHORIA: Parando otimização.")
 			break
 		}
 
-		// C. Migração (Topologia Anel) - Só faz se não parou
+		// C. Migração (Topologia Anel)
 		log.Println("--- Trocando Indivíduos (Migração) ---")
 		for i, islandUrl := range islands {
 			nextIndex := (i + 1) % len(islands)
 			nextIslandUrl := islands[nextIndex]
 
-			// 1. Get Migrants
 			resp, err := http.Get(islandUrl + "/migrants")
 			if err != nil {
 				continue
@@ -137,7 +128,6 @@ func main() {
 			migrantsBody, _ := io.ReadAll(resp.Body)
 			resp.Body.Close()
 
-			// 2. Send Migrants
 			http.Post(nextIslandUrl+"/migrants", "application/json", bytes.NewBuffer(migrantsBody))
 		}
 	}

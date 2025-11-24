@@ -27,6 +27,9 @@ except:
         # Fallback para caminho relativo se necessário (ajuste conforme sua pasta)
         df = pd.read_csv("data/portfolio_allocation.csv", parse_dates=True, index_col="date")
 
+
+df = pd.read_csv("data/portfolio_allocation.csv", parse_dates=True, index_col="date")
+
 returns = df.pct_change().dropna(how="all")
 mu = (1 + returns).prod() ** (252 / returns.count()) - 1
 cov = returns.cov() * 252
