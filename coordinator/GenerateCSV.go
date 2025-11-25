@@ -164,9 +164,17 @@ func PrepareHistoricalCSV(numAssets int) error {
 	// Pasta ../data em relação ao diretório do coordinator
 	dataDir := filepath.Join("..", "data")
 
-	// Se a pasta não existir, retorna erro (como você pediu)
+	// Se a pasta não existir, cria ela (isso evita falha na inicialização do coordenador)
 	if _, err := os.Stat(dataDir); err != nil {
-		return fmt.Errorf("diretório de dados não encontrado em %s: %w", dataDir, err)
+		if os.IsNotExist(err) {
+			// cria o diretório data (incluindo pais, caso faltem)
+			if mkerr := os.MkdirAll(dataDir, 0o755); mkerr != nil {
+				return fmt.Errorf("erro criando diretório de dados em %s: %w", dataDir, mkerr)
+			}
+			log.Printf("Diretório de dados criado em %s", dataDir)
+		} else {
+			return fmt.Errorf("erro ao acessar diretório de dados %s: %w", dataDir, err)
+		}
 	}
 
 	outPath := filepath.Join(dataDir, "portfolio_allocation.csv")

@@ -13,19 +13,14 @@ from pymoo.core.problem import ElementwiseProblem
 from pymoo.optimize import minimize
 from pymoo.util.remote import Remote
 from pymoo.core.termination import Termination
+from pathlib import Path
 
 
 
 #file = Remote.get_instance().load("examples", "portfolio_allocation.csv", to=None)
 #df = pd.read_csv(file, parse_dates=True, index_col="date")
 
-df = pd.read_csv("data/portfolio_allocation.csv", parse_dates=True, index_col="date")
 
-returns = df.pct_change().dropna(how="all")
-mu = (1 + returns).prod() ** (252 / returns.count()) - 1
-cov = returns.cov() * 252
-mu_np, cov_np = mu.to_numpy(), cov.to_numpy()
-labels = df.columns
 
 
 class PortfolioRepair(Repair):
@@ -83,12 +78,35 @@ class SharpeStagnation(Termination):
             delta = abs(current_fitness - past_fitness)
 
             if delta < self.tol:
-                print(f"\n[Critério de Parada] Estagnação detectada! Variação < {self.tol} nas últimas {self.n_last} gerações.")
+                print(f"\n[Critério de Parada] Estagnação detectada! Variação < {self.tol}")
                 return 1.0
         
         return 0.0
 
+# carrega portfolio_allocation.csv que está na mesma pasta do script (ou no cwd se __file__ não existir)
+base = Path(__file__).resolve().parent if "__file__" in globals() else Path.cwd()
+csv_path = base / "portfolio_allocation.csv"
 
+if not csv_path.exists():
+    raise FileNotFoundError(f"Arquivo não encontrado: {csv_path}")
+
+try:
+    df = pd.read_csv(csv_path, parse_dates=True, index_col="date")
+except Exception:
+    df = pd.read_csv(csv_path)
+    if "date" in df.columns:
+        df["date"] = pd.to_datetime(df["date"], errors="coerce")
+        df.set_index("date", inplace=True)
+
+
+
+returns = df.pct_change().dropna(how="all")
+mu = (1 + returns).prod() ** (252 / returns.count()) - 1
+cov = returns.cov() * 252
+mu_np, cov_np = mu.to_numpy(), cov.to_numpy()
+labels = df.columns
+
+start_time = time.time()
 problem = PortfolioProblemGA(mu_np, cov_np)
 
 algorithm = GA(
@@ -103,7 +121,6 @@ termination = SharpeStagnation(n_last=30, tol=1e-3, max_gen=1000)
 print("Iniciando otimização...")
 print("-" * 50)
 
-start_time = time.time()
 
 res = minimize(
     problem,
@@ -135,16 +152,16 @@ if res.opt is not None:
     risks = [ind[0] for ind in risk_return_pop]
     returns_plot = [ind[1] for ind in risk_return_pop]
 
-    plt.figure(figsize=(10, 6))
-    plt.scatter(risks, returns_plot, facecolor="none", edgecolors="blue", alpha=0.5, label="População Final")
-    plt.scatter(cov_np.diagonal() ** 0.5, mu_np, facecolor="none", edgecolors="black", s=30, label="Ativos Individuais")
-    plt.scatter(risk_ret_opt[0], risk_ret_opt[1], marker="*", s=200, color="red", label=f"Max Sharpe ({sharpe_opt:.4f})")
-    plt.title(f"Otimização de Portfólio (Tempo: {seconds:.2f}s)")
-    plt.xlabel("Volatilidade (Risco)")
-    plt.ylabel("Retorno Esperado")
-    plt.legend()
-    plt.grid(True, alpha=0.3)
-    plt.show()
+    #plt.figure(figsize=(10, 6))
+    #plt.scatter(risks, returns_plot, facecolor="none", edgecolors="blue", alpha=0.5, label="População Final")
+    #plt.scatter(cov_np.diagonal() ** 0.5, mu_np, facecolor="none", edgecolors="black", s=30, label="Ativos Individuais")
+    #plt.scatter(risk_ret_opt[0], risk_ret_opt[1], marker="*", s=200, color="red", label=f"Max Sharpe ({sharpe_opt:.4f})")
+    #plt.title(f"Otimização de Portfólio (Tempo: {seconds:.2f}s)")
+    #plt.xlabel("Volatilidade (Risco)")
+    #plt.ylabel("Retorno Esperado")
+    #plt.legend()
+    #plt.grid(True, alpha=0.3)
+    #plt.show()
 
     allocation = {name: w for name, w in zip(labels, X_opt) if w > 0}
     sorted_allocation = sorted(allocation.items(), key=operator.itemgetter(1), reverse=True)

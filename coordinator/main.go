@@ -15,12 +15,12 @@ import (
 
 // Configurações
 const (
-	GenerationsPerCycle = 30    // 30 gerações por ciclo
-	MaxCycles           = 200   // Limite de segurança
+	GenerationsPerCycle = 15    // 5 gerações por ciclo
+	MaxCycles           = 100   // Limite de segurança
 	ConvergenceTol      = 0.001 // Tolerância de estagnação
 
 	generateCSV    = false // Gerar CSV dos dados históricos
-	NumberOfAssets = 5     // Número de ativos para buscar dados
+	NumberOfAssets =  100    // Número de ativos para buscar dados
 )
 
 // Estruturas JSON para comunicação

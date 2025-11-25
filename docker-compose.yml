@@ -18,6 +18,8 @@ services:
 
   coordinator:
     build: ./coordinator
+    volumes:
+      - ./data:/data
     depends_on:
       - island-1
       - island-2
