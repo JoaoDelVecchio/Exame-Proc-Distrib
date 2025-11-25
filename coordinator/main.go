@@ -19,8 +19,8 @@ const (
 	MaxCycles           = 200   // Limite de segurança
 	ConvergenceTol      = 0.001 // Tolerância de estagnação
 
-	generateCSV    = false // Gerar CSV dos dados históricos
-	NumberOfAssets = 5     // Número de ativos para buscar dados
+	generateCSV    = true // Gerar CSV dos dados históricos
+	NumberOfAssets =  80    // Número de ativos para buscar dados
 )
 
 // Estruturas JSON para comunicação
