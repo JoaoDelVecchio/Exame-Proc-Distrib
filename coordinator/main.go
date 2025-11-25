@@ -18,6 +18,9 @@ const (
 	GenerationsPerCycle = 30    // 30 gerações por ciclo
 	MaxCycles           = 200   // Limite de segurança
 	ConvergenceTol      = 0.001 // Tolerância de estagnação
+
+	generateCSV    = true // Gerar CSV dos dados históricos
+	NumberOfAssets = 100  // Número de ativos para buscar dados
 )
 
 // Estruturas JSON para comunicação
@@ -31,6 +34,14 @@ type EvolveResponse struct {
 }
 
 func main() {
+	// Gerar csv dos dados (parte independente do restante da app)
+	if generateCSV {
+		if err := PrepareHistoricalCSV(NumberOfAssets); err != nil {
+			log.Fatalf("Erro preparando CSV histórico: %v", err)
+		}
+		log.Println("CSV histórico gerado com sucesso.")
+	}
+
 	islandsEnv := os.Getenv("ISLANDS")
 	if islandsEnv == "" {
 		log.Fatal("Nenhuma ilha definida na variável ISLANDS")
