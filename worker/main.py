@@ -3,19 +3,15 @@ import numpy as np
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import List
-
-# Imports do Pymoo
 from pymoo.core.problem import ElementwiseProblem
 from pymoo.algorithms.soo.nonconvex.ga import GA
 from pymoo.operators.crossover.sbx import SBX
 from pymoo.operators.mutation.pm import PM
 from pymoo.core.repair import Repair
-from pymoo.core.population import Population # Importante para criar novos indivíduos
-from pymoo.core.evaluator import Evaluator   # Importante para avaliar corretamente
+from pymoo.core.population import Population 
+from pymoo.core.evaluator import Evaluator   
 
 app = FastAPI()
-
-# --- 1. Lógica do Problema ---
 
 class PortfolioRepair(Repair):
     def _do(self, problem, X, **kwargs):
@@ -32,7 +28,6 @@ class PortfolioProblemGA(ElementwiseProblem):
         self.risk_free_rate = risk_free_rate
 
     def _evaluate(self, x, out, *args, **kwargs):
-        # Garante que x é um array 1D para operações de ponto
         if x.ndim == 2:
             x = x.flatten()
 
@@ -47,7 +42,6 @@ class PortfolioProblemGA(ElementwiseProblem):
         out["F"] = -sharpe
         out["sharpe"] = sharpe
 
-# --- 2. Estado Global ---
 class IslandState:
     def __init__(self):
         self.algorithm = None
@@ -55,8 +49,6 @@ class IslandState:
         self.initialized = False
 
 state = IslandState()
-
-# --- 3. Endpoints da API ---
 
 @app.post("/init")
 def initialize():
@@ -121,33 +113,22 @@ def get_migrants():
 
 @app.post("/migrants")
 def receive_migrants(data: MigrantData):
-    """
-    Recebe genes (pesos), cria novos indivíduos, avalia e substitui os piores na população.
-    """
     if not state.initialized:
         raise HTTPException(status_code=400, detail="Not initialized")
-    
-    # 1. Prepara os dados recebidos
+
     new_genes_list = np.array(data.genes)
     if new_genes_list.ndim == 1:
         new_genes_list = new_genes_list.reshape(1, -1)
         
-    # 2. Cria uma nova população temporária com esses genes
-    # O método .new() cria indivíduos compatíveis com o problema
     migrant_pop = Population.new("X", new_genes_list)
-    
-    # 3. Avalia essa população isoladamente
-    # Isso garante que F e sharpe sejam calculados e atribuídos corretamente
+
     Evaluator().eval(state.problem, migrant_pop)
-    
-    # 4. Substitui os piores da população principal
+
     main_pop = state.algorithm.pop
     F_main = main_pop.get("F").flatten()
     worst_indices = np.argsort(F_main)[-len(migrant_pop):]
     
     for i, idx in enumerate(worst_indices):
-        # Substitui o objeto Individual inteiro, não apenas o X
-        # Isso evita qualquer estado inconsistente (NoneType)
         main_pop[idx] = migrant_pop[i]
     
     return {"status": "migrants_integrated", "count": len(migrant_pop)}

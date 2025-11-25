@@ -1,11 +1,10 @@
 version: '3.8'
 
 services:
-  # --- Nossas Ilhas (Workers) ---
   island-1:
     build: ./worker
     volumes:
-      - ./data:/app/data # Monta a pasta de dados para o container ver o CSV
+      - ./data:/app/data 
 
   island-2:
     build: ./worker
@@ -17,7 +16,6 @@ services:
     volumes:
       - ./data:/app/data
 
-  # --- O Gerente (Coordinator) ---
   coordinator:
     build: ./coordinator
     depends_on:
@@ -25,5 +23,4 @@ services:
       - island-2
       - island-3
     environment:
-      # Aqui definimos quem são as ilhas para o Go saber
       - ISLANDS=http://island-1:8000,http://island-2:8000,http://island-3:8000

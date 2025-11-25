@@ -39,8 +39,7 @@ func main() {
 
 	log.Printf("Iniciando Coordenador com %d ilhas: %v", len(islands), islands)
 
-	// --- FASE 1: INICIALIZAÇÃO ---
-	log.Println("--- Fase 1: Inicializando Ilhas ---")
+	log.Println("Inicializando Ilhas")
 	for _, island := range islands {
 		connected := false
 		for !connected {
@@ -56,12 +55,10 @@ func main() {
 		}
 	}
 
-	// Variáveis de Controle
 	globalBestSharpe := -1.0
 	startTime := time.Now()
 
-	// --- FASE 2: LOOP DE EVOLUÇÃO ---
-	log.Println("\n--- Iniciando Otimização Distribuída ---")
+	log.Println("\nIniciando Otimização Distribuída")
 
 	for cycle := 1; cycle <= MaxCycles; cycle++ {
 		log.Printf("\n=== Ciclo %d (Gerações %d a %d) ===", cycle, (cycle-1)*GenerationsPerCycle, cycle*GenerationsPerCycle)
@@ -70,7 +67,6 @@ func main() {
 		var mu sync.Mutex
 		var wg sync.WaitGroup
 
-		// A. Evolução em Paralelo
 		for _, island := range islands {
 			wg.Add(1)
 			go func(url string) {
@@ -98,14 +94,12 @@ func main() {
 		}
 		wg.Wait()
 
-		// B. Verificação de Convergência
 		improvement := cycleBestSharpe - globalBestSharpe
 		log.Printf(">> Melhor Sharpe do Ciclo: %.5f | Melhor Anterior: %.5f | Melhoria: %.5f", cycleBestSharpe, globalBestSharpe, improvement)
 
 		if cycleBestSharpe > globalBestSharpe {
 			globalBestSharpe = cycleBestSharpe
 			
-			// Só paramos se já tivermos rodado pelo menos 1 ciclo completo antes para comparar a melhoria
 			if cycle > 1 && improvement < ConvergenceTol {
 				log.Printf("\nESTAGNAÇÃO DETECTADA: Melhoria %.5f < %.5f. Parando otimização.", improvement, ConvergenceTol)
 				break
@@ -115,7 +109,6 @@ func main() {
 			break
 		}
 
-		// C. Migração (Topologia Anel)
 		log.Println("--- Trocando Indivíduos (Migração) ---")
 		for i, islandUrl := range islands {
 			nextIndex := (i + 1) % len(islands)
@@ -131,8 +124,6 @@ func main() {
 			http.Post(nextIslandUrl+"/migrants", "application/json", bytes.NewBuffer(migrantsBody))
 		}
 	}
-
-	// --- FIM ---
 	elapsed := time.Since(startTime)
 	
 	log.Println("\n============================================")
