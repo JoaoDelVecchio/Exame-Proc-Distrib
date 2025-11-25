@@ -55,10 +55,10 @@ def get_migrants():
     F = pop.get("F").flatten()
     sorted_indices = np.argsort(F)
     
-    top_5_indices = sorted_indices[:5]
-    top_5_genes = pop[top_5_indices].get("X")
+    top_indices = sorted_indices[:MIGRANTS]
+    top_genes = pop[top_indices].get("X")
     
-    return {"genes": top_5_genes.tolist()}
+    return {"genes": top_genes.tolist()}
 
 @app.post("/migrants")
 def receive_migrants(data: MigrantData):
