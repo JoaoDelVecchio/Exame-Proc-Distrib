@@ -5,6 +5,7 @@ from typing import List
 from islands import *
 from constants import *
 import matplotlib.pyplot as plt
+import logging
 
 app = FastAPI()
 
@@ -61,7 +62,13 @@ def get_migrants():
     
     top_indices = sorted_indices[:MIGRANTS]
     top_genes = pop[top_indices].get("X")
-    
+    try:
+        top_sharpes = pop[top_indices].get("sharpe")
+    except Exception:
+        top_sharpes = None
+
+    logging.info(f"GET /migrants -> sending {len(top_genes)} migrants; sharpes={top_sharpes}")
+
     return {"genes": top_genes.tolist()}
 
 @app.post("/migrants")
@@ -70,8 +77,11 @@ def receive_migrants(data: MigrantData):
         raise HTTPException(status_code=400, detail="Not initialized")
 
     new_genes_list = np.array(data.genes)
+    logging.info(f"POST /migrants -> received {new_genes_list.shape[0]} migrants")
     migrants_integrated = state.integrate_migrants(new_genes_list)
-    
+
+    logging.info(f"POST /migrants -> integrated {migrants_integrated} migrants")
+
     return {"status": "migrants_integrated", "count": migrants_integrated}
 
 @app.get("/status")
