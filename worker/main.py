@@ -4,10 +4,13 @@ from pydantic import BaseModel
 from typing import List
 from islands import *
 from constants import *
+import matplotlib.pyplot as plt
 
 app = FastAPI()
 
 state = IslandState()
+
+sharpe_values = []
 
 @app.post("/init")
 def initialize():
@@ -35,6 +38,7 @@ def evolve(generations: int = 1):
     
     for _ in range(generations):
         state.algorithm.next()
+        sharpe_values.append(state.algorithm.opt[0].get("sharpe"))
         
     best_sharpe = state.algorithm.opt[0].get("sharpe")
     
@@ -55,10 +59,10 @@ def get_migrants():
     F = pop.get("F").flatten()
     sorted_indices = np.argsort(F)
     
-    top_5_indices = sorted_indices[:5]
-    top_5_genes = pop[top_5_indices].get("X")
+    top_indices = sorted_indices[:MIGRANTS]
+    top_genes = pop[top_indices].get("X")
     
-    return {"genes": top_5_genes.tolist()}
+    return {"genes": top_genes.tolist()}
 
 @app.post("/migrants")
 def receive_migrants(data: MigrantData):
@@ -75,3 +79,21 @@ def status():
     if not state.initialized or state.algorithm.opt is None:
         return {"sharpe": 0.0}
     return {"sharpe": float(state.algorithm.opt[0].get("sharpe"))}
+
+
+@app.post("/plot")
+def plot_sharpe():
+    title="Evolução do Sharpe do GA"
+    generations = list(range(len(sharpe_values)))
+
+    plt.figure(figsize=(10, 6))
+    plt.plot(generations, sharpe_values, marker="o", color="blue", alpha=0.8)
+
+    plt.title(title)
+    plt.xlabel("Geração")
+    plt.ylabel("Sharpe Ratio")
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.show()
+    plt.savefig('sharpes.png')
+

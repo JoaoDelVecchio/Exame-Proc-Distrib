@@ -19,8 +19,8 @@ const (
 	MaxCycles           = 200   // Limite de segurança
 	ConvergenceTol      = 0.001 // Tolerância de estagnação
 
-	generateCSV    = true // Gerar CSV dos dados históricos
-	NumberOfAssets = 100  // Número de ativos para buscar dados
+	generateCSV    = false // Gerar CSV dos dados históricos
+	NumberOfAssets = 5     // Número de ativos para buscar dados
 )
 
 // Estruturas JSON para comunicação
@@ -82,7 +82,7 @@ func main() {
 			wg.Add(1)
 			go func(url string) {
 				defer wg.Done()
-				
+
 				target := fmt.Sprintf("%s/evolve?generations=%d", url, GenerationsPerCycle)
 				resp, err := http.Post(target, "application/json", nil)
 				if err != nil {
@@ -94,7 +94,7 @@ func main() {
 				var result EvolveResponse
 				if err := json.NewDecoder(resp.Body).Decode(&result); err == nil {
 					log.Printf("Ilha %s terminou. Sharpe: %.5f", url, result.CurrentBestSharpe)
-					
+
 					mu.Lock()
 					if result.CurrentBestSharpe > cycleBestSharpe {
 						cycleBestSharpe = result.CurrentBestSharpe
@@ -110,7 +110,7 @@ func main() {
 
 		if cycleBestSharpe > globalBestSharpe {
 			globalBestSharpe = cycleBestSharpe
-			
+
 			if cycle > 1 && improvement < ConvergenceTol {
 				log.Printf("\nESTAGNAÇÃO DETECTADA: Melhoria %.5f < %.5f. Parando otimização.", improvement, ConvergenceTol)
 				break
@@ -136,7 +136,11 @@ func main() {
 		}
 	}
 	elapsed := time.Since(startTime)
-	
+
+	for _, islandUrl := range islands {
+		http.Post(islandUrl+"/plot", "application/json", nil)
+	}
+
 	log.Println("\n============================================")
 	log.Printf("OTIMIZAÇÃO CONCLUÍDA")
 	log.Printf("Tempo Total: %s", elapsed)

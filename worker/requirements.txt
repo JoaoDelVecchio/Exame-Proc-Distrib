@@ -4,3 +4,4 @@ pymoo
 pandas
 numpy
 requests
+matplotlib
