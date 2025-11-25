@@ -47,10 +47,10 @@ func main() {
 			resp, err := http.Post(island+"/init", "application/json", nil)
 			if err == nil && resp.StatusCode == 200 {
 				resp.Body.Close()
-				log.Printf("✅ %s online!", island)
+				log.Printf("%s online!", island)
 				connected = true
 			} else {
-				log.Printf("⏳ %s indisponível. Tentando em 2s...", island)
+				log.Printf("%s indisponível. Tentando em 2s...", island)
 				time.Sleep(2 * time.Second)
 			}
 		}
