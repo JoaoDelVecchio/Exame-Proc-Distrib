@@ -78,7 +78,7 @@ class SharpeStagnation(Termination):
             delta = abs(current_fitness - past_fitness)
 
             if delta < self.tol:
-                print(f"\n[Critério de Parada] Estagnação detectada! Variação < {self.tol} nas últimas {self.n_last} gerações.")
+                print(f"\n[Critério de Parada] Estagnação detectada! Variação < {self.tol}")
                 return 1.0
         
         return 0.0
