@@ -5,24 +5,12 @@ O objetivo é aplicar conceitos de **Sistemas Distribuídos** na otimização de
 
 ---
 
-## Objetivo Geral
-
-Aumentar desempenho, escalabilidade e precisão na busca por portfólios com melhor relação **risco vs retorno**, explorando o paralelismo natural do Algoritmo Genético (GA).
-
----
-
-## Arquitetura — Modelo de Ilhas
-
-Cada instância do serviço representa uma **ilha**, responsável por evoluir uma subpopulação.  
-Em intervalos pré-definidos, as melhores soluções são **migradas** entre as ilhas para manter diversidade e evitar ótimos locais.
-
-Comunicação e sincronização via **HTTP REST**.
-
----
-
-## ▶️ Como Executar
+## Como Executar
 
 Com **Docker Desktop** instalado e rodando no Windows/Linux/macOS:
 
 ```bash
 docker compose up --build
+```
+
+Após o término do processo, execute o script get_graphs.bat para pegar e abrir os gráficos gerados em cada ilha.

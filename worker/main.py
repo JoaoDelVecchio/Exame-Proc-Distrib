@@ -4,10 +4,13 @@ from pydantic import BaseModel
 from typing import List
 from islands import *
 from constants import *
+import matplotlib.pyplot as plt
 
 app = FastAPI()
 
 state = IslandState()
+
+sharpe_values = []
 
 @app.post("/init")
 def initialize():
@@ -35,6 +38,7 @@ def evolve(generations: int = 1):
     
     for _ in range(generations):
         state.algorithm.next()
+        sharpe_values.append(state.algorithm.opt[0].get("sharpe"))
         
     best_sharpe = state.algorithm.opt[0].get("sharpe")
     
@@ -75,3 +79,21 @@ def status():
     if not state.initialized or state.algorithm.opt is None:
         return {"sharpe": 0.0}
     return {"sharpe": float(state.algorithm.opt[0].get("sharpe"))}
+
+
+@app.post("/plot")
+def plot_sharpe():
+    title="Evolução do Sharpe do GA"
+    generations = list(range(len(sharpe_values)))
+
+    plt.figure(figsize=(10, 6))
+    plt.plot(generations, sharpe_values, marker="o", color="blue", alpha=0.8)
+
+    plt.title(title)
+    plt.xlabel("Geração")
+    plt.ylabel("Sharpe Ratio")
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.show()
+    plt.savefig('sharpes.png')
+
