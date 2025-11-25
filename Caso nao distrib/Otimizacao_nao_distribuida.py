@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import operator
 import time
 
-# Bibliotecas do Pymoo
+
 from pymoo.algorithms.soo.nonconvex.ga import GA
 from pymoo.operators.crossover.sbx import SBX
 from pymoo.operators.mutation.pm import PM
@@ -14,19 +14,10 @@ from pymoo.optimize import minimize
 from pymoo.util.remote import Remote
 from pymoo.core.termination import Termination
 
-# --- 1. Carregamento dos Dados ---
-try:
-    # Tenta carregar do exemplo remoto
-    file = Remote.get_instance().load("examples", "portfolio_allocation.csv", to=None)
-    df = pd.read_csv(file, parse_dates=True, index_col="date")
-except:
-    # Se falhar (ou se você estiver offline), tenta ler o arquivo local
-    try:
-        df = pd.read_csv("portfolio_allocation.csv", parse_dates=True, index_col="date")
-    except FileNotFoundError:
-        # Fallback para caminho relativo se necessário (ajuste conforme sua pasta)
-        df = pd.read_csv("data/portfolio_allocation.csv", parse_dates=True, index_col="date")
 
+
+#file = Remote.get_instance().load("examples", "portfolio_allocation.csv", to=None)
+#df = pd.read_csv(file, parse_dates=True, index_col="date")
 
 df = pd.read_csv("data/portfolio_allocation.csv", parse_dates=True, index_col="date")
 
@@ -36,7 +27,6 @@ cov = returns.cov() * 252
 mu_np, cov_np = mu.to_numpy(), cov.to_numpy()
 labels = df.columns
 
-# --- 2. Definição do Problema e Operadores ---
 
 class PortfolioRepair(Repair):
     def _do(self, problem, X, **kwargs):
@@ -65,7 +55,6 @@ class PortfolioProblemGA(ElementwiseProblem):
         out["risk_return"] = [exp_risk, exp_return]
         out["sharpe"] = sharpe
 
-# --- 3. Critério de Parada Personalizado (CORRIGIDO) ---
 
 class SharpeStagnation(Termination):
     def __init__(self, n_last=30, tol=1e-3, max_gen=1000):
@@ -80,32 +69,25 @@ class SharpeStagnation(Termination):
         self.history = []
 
     def _update(self, algorithm):
-        # 1. Verifica se atingiu o limite de gerações (Segurança)
         if algorithm.n_gen >= self.max_gen:
-            return 1.0 # Retorna 1.0 (100%) para parar
+            return 1.0
 
-        # 2. Verifica Estagnação
-        # Pega o melhor valor da função objetivo atual
         if algorithm.opt is not None and len(algorithm.opt) > 0:
             current_fitness = algorithm.opt[0].F[0]
             self.history.append(current_fitness)
 
-            # Se ainda não rodamos gerações suficientes para comparar, continua
             if len(self.history) <= self.n_last:
                 return 0.0
 
-            # Compara o valor atual com o valor de 30 gerações atrás
             past_fitness = self.history[-self.n_last]
             delta = abs(current_fitness - past_fitness)
 
-            # Se a mudança for menor que a tolerância (ex: 0.001), terminamos
             if delta < self.tol:
                 print(f"\n[Critério de Parada] Estagnação detectada! Variação < {self.tol} nas últimas {self.n_last} gerações.")
                 return 1.0
         
         return 0.0
 
-# --- 4. Configuração e Execução ---
 
 problem = PortfolioProblemGA(mu_np, cov_np)
 
@@ -116,13 +98,11 @@ algorithm = GA(
     eliminate_duplicates=True
 )
 
-# Instancia a classe corrigida com os dois critérios juntos
 termination = SharpeStagnation(n_last=30, tol=1e-3, max_gen=1000)
 
 print("Iniciando otimização...")
 print("-" * 50)
 
-# --- INÍCIO DA MEDIÇÃO DE TEMPO ---
 start_time = time.time()
 
 res = minimize(
@@ -134,7 +114,6 @@ res = minimize(
 )
 
 end_time = time.time()
-# --- FIM DA MEDIÇÃO DE TEMPO ---
 
 execution_time = end_time - start_time
 minutes = int(execution_time // 60)
@@ -144,7 +123,6 @@ print("-" * 50)
 print(f"Otimização concluída em: {minutes}m {seconds:.2f}s")
 print(f"Gerações executadas: {res.algorithm.n_gen}")
 
-# --- 5. Resultados e Gráficos ---
 
 if res.opt is not None:
     opt = res.opt[0]
@@ -152,7 +130,6 @@ if res.opt is not None:
     sharpe_opt = opt.get("sharpe")
     risk_ret_opt = opt.get("risk_return")
 
-    # Gráfico
     pop = res.algorithm.pop
     risk_return_pop = pop.get("risk_return")
     risks = [ind[0] for ind in risk_return_pop]

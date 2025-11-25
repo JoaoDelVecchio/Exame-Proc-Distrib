@@ -16,7 +16,7 @@ import (
 // Configurações
 const (
 	GenerationsPerCycle = 30    // 30 gerações por ciclo
-	MaxCycles           = 100   // Limite de segurança
+	MaxCycles           = 200   // Limite de segurança
 	ConvergenceTol      = 0.001 // Tolerância de estagnação
 )
 
