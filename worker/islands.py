@@ -5,7 +5,7 @@ from pymoo.operators.mutation.pm import PM
 from pymoo.core.evaluator import Evaluator
 from pymoo.core.population import Population
 from portifolio_problem import *
-
+from constants import *
 
 class IslandState:
     def __init__(self):
@@ -17,9 +17,9 @@ class IslandState:
         self.problem = PortfolioProblemGA(mu_np, cov_np)
 
         self.algorithm = GA(
-            pop_size=100,
-            crossover=SBX(prob=0.9, eta=15, repair=PortfolioRepair()),
-            mutation=PM(eta=20, repair=PortfolioRepair()),
+            pop_size=POPULATION_SIZE,
+            crossover=SBX(prob=CROSSOVER, eta=CROSSOVER_ETA, repair=PortfolioRepair()),
+            mutation=PM(eta=MUTATION_ETA, repair=PortfolioRepair()),
             eliminate_duplicates=True
         )
 

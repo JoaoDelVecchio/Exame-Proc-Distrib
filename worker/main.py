@@ -3,6 +3,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import List
 from islands import *
+from constants import *
 
 app = FastAPI()
 
@@ -14,8 +15,8 @@ def initialize():
         df = pd.read_csv("/app/data/portfolio_allocation.csv", parse_dates=True, index_col="date")
         
         returns = df.pct_change().dropna(how="all")
-        mu = (1 + returns).prod() ** (252 / returns.count()) - 1
-        cov = returns.cov() * 252
+        mu = (1 + returns).prod() ** (BUSSINESS_DAYS / returns.count()) - 1
+        cov = returns.cov() * BUSSINESS_DAYS
         
         mu_np = mu.to_numpy()
         cov_np = cov.to_numpy()
