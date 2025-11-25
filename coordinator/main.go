@@ -20,7 +20,7 @@ const (
 	ConvergenceTol      = 0.001 // Tolerância de estagnação
 
 	generateCSV    = true // Gerar CSV dos dados históricos
-	NumberOfAssets =  80    // Número de ativos para buscar dados
+	NumberOfAssets =  100    // Número de ativos para buscar dados
 )
 
 // Estruturas JSON para comunicação
